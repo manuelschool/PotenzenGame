@@ -5,8 +5,44 @@ try{document.getElementById('shopScreen').classList.add('hidden');document.getEl
 
 mpRefreshPulse=setInterval(()=>{if(mpRoom)refresh()},3000);
 
-// V10: remove stale players and suppress the original single-player shop.
-setInterval(async()=>{if(mpRoom){try{await mp.rpc('remove_stale_players',{p_room_id:mpRoom.id,p_seconds:20});refresh()}catch(e){console.warn(e)}}},10000);
-const v10Shop=document.getElementById('shopScreen');
-if(v10Shop){const hide=()=>{const open=!v10Shop.classList.contains('hidden');v10Shop.classList.add('hidden');v10Shop.style.setProperty('display','none','important');if(open&&!G.over){G.paused=false;const c=document.getElementById('shopClose');if(c)setTimeout(()=>c.click(),0)}};new MutationObserver(hide).observe(v10Shop,{attributes:true});hide()}
-const v10Tools=document.getElementById('tools');if(v10Tools)new MutationObserver(()=>{v10Tools.innerHTML='';v10Tools.style.setProperty('display','none','important')}).observe(v10Tools,{childList:true});
+// V10.1: safe stale cleanup and safe projector-shop suppression.
+setInterval(async()=>{
+  if(!mpRoom)return;
+  try{
+    await mp.rpc('remove_stale_players',{p_room_id:mpRoom.id,p_seconds:20});
+    await refresh();
+  }catch(e){console.warn('stale cleanup',e)}
+},10000);
+
+const v101Shop=document.getElementById('shopScreen');
+function suppressProjectorShop(){
+  if(!v101Shop)return;
+  if(!v101Shop.classList.contains('hidden')){
+    // Disconnect/change only once. Do not observe style/class while changing them.
+    v101Shop.classList.add('hidden');
+    G.paused=false;
+    const close=document.getElementById('shopClose');
+    if(close)setTimeout(()=>close.click(),0);
+  }
+}
+if(v101Shop){
+  const shopObserver=new MutationObserver(()=>{
+    if(!v101Shop.classList.contains('hidden'))suppressProjectorShop();
+  });
+  shopObserver.observe(v101Shop,{attributes:true,attributeFilter:['class']});
+  suppressProjectorShop();
+}
+
+const v101Tools=document.getElementById('tools');
+if(v101Tools){
+  const toolsObserver=new MutationObserver(()=>{
+    if(v101Tools.childNodes.length){
+      toolsObserver.disconnect();
+      v101Tools.replaceChildren();
+      toolsObserver.observe(v101Tools,{childList:true});
+    }
+  });
+  toolsObserver.observe(v101Tools,{childList:true});
+  if(v101Tools.childNodes.length)v101Tools.replaceChildren();
+}
+
